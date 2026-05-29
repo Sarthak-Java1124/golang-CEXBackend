@@ -12,5 +12,5 @@ func incomingOrderRoutes() {
 	r.GET("/api/order/me", handlers.OrderGetHandler)
 	r.DELETE("/api/order/:id", handlers.DeleteOrder)
 	r.GET("/api/orderbooks/:market", handlers.GetOrderBookByMarket)
-	
+
 }

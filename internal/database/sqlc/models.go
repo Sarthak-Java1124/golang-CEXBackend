@@ -9,11 +9,12 @@ import (
 )
 
 type Balance struct {
-	ID       pgtype.UUID
-	UserID   pgtype.UUID
-	Asset    string
-	Price    pgtype.Numeric
-	Quantity pgtype.Numeric
+	ID           pgtype.UUID
+	UserID       pgtype.UUID
+	Balance      int32
+	AssetBalance []byte
+	CreatedAt    pgtype.Timestamp
+	UpdatedAt    pgtype.Timestamp
 }
 
 type Order struct {

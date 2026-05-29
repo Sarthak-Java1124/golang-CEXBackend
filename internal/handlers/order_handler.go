@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"golang-CEX/internal/database/sqlc"
+	"golang-CEX/internal/services"
 	"golang-CEX/internal/utils"
 	"log"
 	"net/http"
@@ -47,6 +48,8 @@ func (h *Handler) OrderPostHandler(c *gin.Context) {
 	if userBalance < (order.Price * order.Quantity) {
 		c.JSON(http.StatusBadRequest , gin.H{"error" : "There is not enough balance in the account to carry out this transaction"})
 	}
+      services.MatchingEngine(order , userId)
+
 	order_id := pgtype.UUID{
     Bytes: [16]byte(uuid.New()),  
     Valid: true,
@@ -85,10 +88,36 @@ userId, ok := utils.GetUserId(c)
 		})
 		return
 	}
+	ctx , cancel := context.WithTimeout(context.Background() , 10*time.Second)
+	orders  , err := h.Queries.Queries.GetOrderByID(ctx , userId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest , gin.H{"message" :"Unable to query database for getting the orders"} )
+	}
+   defer cancel()
+   c.JSON(http.StatusAccepted , gin.H{"data"   : orders  , "message"  : "The orders fetched successfully"})
 
 }
 
-func DeleteOrder(c *gin.Context) {
+
+func (h *Handler) DeleteOrder(c *gin.Context) {
+  userId, ok := utils.GetUserId(c)
+	if !ok {
+		c.JSON(401, gin.H{
+			"error": "unauthorized",
+		})
+		return
+	}
+	ctx , cancel := context.WithTimeout(context.Background , 10*time.Seconds)
+	defer cancel()
+
+
+	err = h.Queries.DeleteOrder(ctx , userId)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError  , gin.H{"message"  : "Unable to delete the order"})
+		return
+	}
+	c.JSON(http.StatusAccepted  , gin.H{"message"  : "Order deleted successfully"})
 
 }
 

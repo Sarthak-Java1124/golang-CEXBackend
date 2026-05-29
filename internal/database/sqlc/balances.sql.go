@@ -15,63 +15,42 @@ const createBalance = `-- name: CreateBalance :one
 INSERT INTO balances (
     id,
     user_id,
-    asset,
-    price,
-    quantity
+    balance,
+    asset_balance
 )
 VALUES (
     $1,
     $2,
     $3,
-    $4,
-    $5
+    $4
 )
-RETURNING id, user_id, asset, price, quantity
+RETURNING id, user_id, balance, asset_balance, created_at, updated_at
 `
 
 type CreateBalanceParams struct {
-	ID       pgtype.UUID
-	UserID   pgtype.UUID
-	Asset    string
-	Price    pgtype.Numeric
-	Quantity pgtype.Numeric
+	ID           pgtype.UUID
+	UserID       pgtype.UUID
+	Balance      int32
+	AssetBalance []byte
 }
 
 func (q *Queries) CreateBalance(ctx context.Context, arg CreateBalanceParams) (Balance, error) {
 	row := q.db.QueryRow(ctx, createBalance,
 		arg.ID,
 		arg.UserID,
-		arg.Asset,
-		arg.Price,
-		arg.Quantity,
+		arg.Balance,
+		arg.AssetBalance,
 	)
 	var i Balance
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Asset,
-		&i.Price,
-		&i.Quantity,
+		&i.Balance,
+		&i.AssetBalance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const decreaseBalanceQuantity = `-- name: DecreaseBalanceQuantity :exec
-UPDATE balances
-SET quantity = quantity - $3
-WHERE user_id = $1
-  AND asset = $2
-`
-
-type DecreaseBalanceQuantityParams struct {
-	UserID   pgtype.UUID
-	Asset    string
-	Quantity pgtype.Numeric
-}
-
-func (q *Queries) DecreaseBalanceQuantity(ctx context.Context, arg DecreaseBalanceQuantityParams) error {
-	_, err := q.db.Exec(ctx, decreaseBalanceQuantity, arg.UserID, arg.Asset, arg.Quantity)
-	return err
 }
 
 const deleteBalance = `-- name: DeleteBalance :exec
@@ -84,8 +63,18 @@ func (q *Queries) DeleteBalance(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const deleteBalanceByUserID = `-- name: DeleteBalanceByUserID :exec
+DELETE FROM balances
+WHERE user_id = $1
+`
+
+func (q *Queries) DeleteBalanceByUserID(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteBalanceByUserID, userID)
+	return err
+}
+
 const getBalanceByID = `-- name: GetBalanceByID :one
-SELECT id, user_id, asset, price, quantity
+SELECT id, user_id, balance, asset_balance, created_at, updated_at
 FROM balances
 WHERE id = $1
 `
@@ -96,47 +85,42 @@ func (q *Queries) GetBalanceByID(ctx context.Context, id pgtype.UUID) (Balance, 
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Asset,
-		&i.Price,
-		&i.Quantity,
+		&i.Balance,
+		&i.AssetBalance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getUserAssetBalance = `-- name: GetUserAssetBalance :one
-SELECT id, user_id, asset, price, quantity
+const getBalanceByUserID = `-- name: GetBalanceByUserID :one
+SELECT id, user_id, balance, asset_balance, created_at, updated_at
 FROM balances
 WHERE user_id = $1
-  AND asset = $2
 `
 
-type GetUserAssetBalanceParams struct {
-	UserID pgtype.UUID
-	Asset  string
-}
-
-func (q *Queries) GetUserAssetBalance(ctx context.Context, arg GetUserAssetBalanceParams) (Balance, error) {
-	row := q.db.QueryRow(ctx, getUserAssetBalance, arg.UserID, arg.Asset)
+func (q *Queries) GetBalanceByUserID(ctx context.Context, userID pgtype.UUID) (Balance, error) {
+	row := q.db.QueryRow(ctx, getBalanceByUserID, userID)
 	var i Balance
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Asset,
-		&i.Price,
-		&i.Quantity,
+		&i.Balance,
+		&i.AssetBalance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getUserBalances = `-- name: GetUserBalances :many
-SELECT id, user_id, asset, price, quantity
+const listBalances = `-- name: ListBalances :many
+SELECT id, user_id, balance, asset_balance, created_at, updated_at
 FROM balances
-WHERE user_id = $1
-ORDER BY asset ASC
+ORDER BY user_id
 `
 
-func (q *Queries) GetUserBalances(ctx context.Context, userID pgtype.UUID) ([]Balance, error) {
-	rows, err := q.db.Query(ctx, getUserBalances, userID)
+func (q *Queries) ListBalances(ctx context.Context) ([]Balance, error) {
+	rows, err := q.db.Query(ctx, listBalances)
 	if err != nil {
 		return nil, err
 	}
@@ -147,9 +131,10 @@ func (q *Queries) GetUserBalances(ctx context.Context, userID pgtype.UUID) ([]Ba
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.Asset,
-			&i.Price,
-			&i.Quantity,
+			&i.Balance,
+			&i.AssetBalance,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -161,38 +146,83 @@ func (q *Queries) GetUserBalances(ctx context.Context, userID pgtype.UUID) ([]Ba
 	return items, nil
 }
 
-const increaseBalanceQuantity = `-- name: IncreaseBalanceQuantity :exec
+const updateAssetBalance = `-- name: UpdateAssetBalance :one
 UPDATE balances
-SET quantity = quantity + $3
-WHERE user_id = $1
-  AND asset = $2
+SET asset_balance = $2
+WHERE id = $1
+RETURNING id, user_id, balance, asset_balance, created_at, updated_at
 `
 
-type IncreaseBalanceQuantityParams struct {
-	UserID   pgtype.UUID
-	Asset    string
-	Quantity pgtype.Numeric
+type UpdateAssetBalanceParams struct {
+	ID           pgtype.UUID
+	AssetBalance []byte
 }
 
-func (q *Queries) IncreaseBalanceQuantity(ctx context.Context, arg IncreaseBalanceQuantityParams) error {
-	_, err := q.db.Exec(ctx, increaseBalanceQuantity, arg.UserID, arg.Asset, arg.Quantity)
-	return err
+func (q *Queries) UpdateAssetBalance(ctx context.Context, arg UpdateAssetBalanceParams) (Balance, error) {
+	row := q.db.QueryRow(ctx, updateAssetBalance, arg.ID, arg.AssetBalance)
+	var i Balance
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Balance,
+		&i.AssetBalance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
-const updateBalancePrice = `-- name: UpdateBalancePrice :exec
+const updateBalance = `-- name: UpdateBalance :one
 UPDATE balances
-SET price = $3
-WHERE user_id = $1
-  AND asset = $2
+SET
+    balance = $2,
+    asset_balance = $3
+WHERE id = $1
+RETURNING id, user_id, balance, asset_balance, created_at, updated_at
 `
 
-type UpdateBalancePriceParams struct {
-	UserID pgtype.UUID
-	Asset  string
-	Price  pgtype.Numeric
+type UpdateBalanceParams struct {
+	ID           pgtype.UUID
+	Balance      int32
+	AssetBalance []byte
 }
 
-func (q *Queries) UpdateBalancePrice(ctx context.Context, arg UpdateBalancePriceParams) error {
-	_, err := q.db.Exec(ctx, updateBalancePrice, arg.UserID, arg.Asset, arg.Price)
-	return err
+func (q *Queries) UpdateBalance(ctx context.Context, arg UpdateBalanceParams) (Balance, error) {
+	row := q.db.QueryRow(ctx, updateBalance, arg.ID, arg.Balance, arg.AssetBalance)
+	var i Balance
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Balance,
+		&i.AssetBalance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateBalanceAmount = `-- name: UpdateBalanceAmount :one
+UPDATE balances
+SET balance = $2
+WHERE id = $1
+RETURNING id, user_id, balance, asset_balance, created_at, updated_at
+`
+
+type UpdateBalanceAmountParams struct {
+	ID      pgtype.UUID
+	Balance int32
+}
+
+func (q *Queries) UpdateBalanceAmount(ctx context.Context, arg UpdateBalanceAmountParams) (Balance, error) {
+	row := q.db.QueryRow(ctx, updateBalanceAmount, arg.ID, arg.Balance)
+	var i Balance
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Balance,
+		&i.AssetBalance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

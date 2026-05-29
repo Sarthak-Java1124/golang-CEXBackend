@@ -2,16 +2,14 @@
 INSERT INTO balances (
     id,
     user_id,
-    asset,
-    price,
-    quantity
+    balance,
+    asset_balance
 )
 VALUES (
     $1,
     $2,
     $3,
-    $4,
-    $5
+    $4
 )
 RETURNING *;
 
@@ -22,41 +20,46 @@ FROM balances
 WHERE id = $1;
 
 
--- name: GetUserBalances :many
+-- name: GetBalanceByUserID :one
 SELECT *
 FROM balances
-WHERE user_id = $1
-ORDER BY asset ASC;
+WHERE user_id = $1;
 
 
--- name: GetUserAssetBalance :one
+-- name: ListBalances :many
 SELECT *
 FROM balances
-WHERE user_id = $1
-  AND asset = $2;
+ORDER BY user_id;
 
 
--- name: UpdateBalancePrice :exec
+-- name: UpdateBalance :one
 UPDATE balances
-SET price = $3
-WHERE user_id = $1
-  AND asset = $2;
+SET
+    balance = $2,
+    asset_balance = $3
+WHERE id = $1
+RETURNING *;
 
 
--- name: IncreaseBalanceQuantity :exec
+-- name: UpdateAssetBalance :one
 UPDATE balances
-SET quantity = quantity + $3
-WHERE user_id = $1
-  AND asset = $2;
+SET asset_balance = $2
+WHERE id = $1
+RETURNING *;
 
 
--- name: DecreaseBalanceQuantity :exec
+-- name: UpdateBalanceAmount :one
 UPDATE balances
-SET quantity = quantity - $3
-WHERE user_id = $1
-  AND asset = $2;
+SET balance = $2
+WHERE id = $1
+RETURNING *;
 
 
 -- name: DeleteBalance :exec
 DELETE FROM balances
 WHERE id = $1;
+
+
+-- name: DeleteBalanceByUserID :exec
+DELETE FROM balances
+WHERE user_id = $1;
